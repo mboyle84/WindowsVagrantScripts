@@ -13,7 +13,7 @@ config.vm.provider "virtualbox" do |vb|
         #Change the mac from default to not interrupt communication on network.The mac might already exist, same thing for hostname below.
         #vb.customize ["modifyvm", :id, "--macaddress1", "08002789C57A" ]
         
-        #mac changes per user for tradeshow
+        #mac changes per user for each tesitng user to avoid networking issues.
         #User1
             #vb.customize ["modifyvm", :id, "--macaddress1", "08002789C57B" ]
         #User2
