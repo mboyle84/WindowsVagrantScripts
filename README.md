@@ -1,1 +1,1 @@
-# WindowsVagrantScripts
+Files for setting up TradeShow booth and other automated testing enviroments. See wiki for more details on all of this
