@@ -1,0 +1,106 @@
+echo -e "\n--- Configuring Vagrant for Envroment testing ---\n"
+sed -i '/setchromedefault.ps1/d' Vagrantfile
+sed -i 's/"2048"/"4096"/g' Vagrantfile
+sed -i '87i\config.vm.provision :windows_reboot\' Vagrantfile
+
+echo -e "\n--- Configuring Puppet File for Softwarename Envroment testing ---\n"
+
+cat > ./manifests/default.pp << "EOF"
+package { "vcredist2012" :
+  ensure => "latest",
+  provider => 'chocolatey',
+}
+package { "vcredist2010" :
+  ensure => "latest",
+  provider => 'chocolatey',
+}
+package { "dotnet4.5" :
+  ensure => "latest",
+  provider => 'chocolatey',
+}
+package { "javaruntime" :
+  ensure => "7.0.75",
+  provider => 'chocolatey',
+}
+package { "python2" :
+  ensure => "latest",
+  provider => 'chocolatey',
+}
+package { "java.jdk" :
+  ensure => "latest",
+  provider => 'chocolatey',
+}
+
+
+EOF
+cat ./manifests/default.pp
+
+cat Vagrantfile
+echo -e "\n--- Bring up Vagrant Enviroment For Testing ---\n"
+/usr/bin/vagrant up
+
+echo -e "\n--- Determining the VM name for testing ---\n"
+Machine=$(VBoxManage list vms|grep Softwarename|grep -Po '{\K[^}]*')
+echo -e "\n--- Waiting for vm to shutdown ---\n"
+x=1
+while VBoxManage list runningvms|grep Softwarename
+do
+
+  sleep 30
+  x=$(( $x + 1 ))
+done
+echo -e "\n--- Configuring VM for testing ---\n"
+VBoxManage sharedfolder remove $Machine --name vagrant
+VBoxManage sharedfolder add $Machine --name vagrant --hostpath /var/jenkins/workspace/SoftwarenameTesting --automount
+echo -e "\n--- Starting VM full screen ---\n"
+export DISPLAY=:11
+xterm -e nohup VirtualBox --startvm $Machine -fullscreen > /dev/null 2>&1
+echo -e "\n--- Waiting for Testing file to appear to ensure testing has completed ---\n"
+x=1
+while [ ! -f /var/jenkins/workspace/SoftwarenameTesting/SoftwarenameTesting/SoftwarenameTest.sikuli/TestResults.txt -a  $x -lt 50 ]
+do
+
+  sleep 30
+  x=$(( $x + 1 ))
+done
+File=/var/jenkins/workspace/SoftwarenameTesting/SoftwarenameTesting/SoftwarenameTest.sikuli/TestResults.txt
+ResultsImage=/var/jenkins/workspace/SoftwarenameTesting/SoftwarenameTesting/SoftwarenameTest.sikuli/Results.png
+Image=/var/jenkins/workspace/SoftwarenameTesting/SoftwarenameTesting/SoftwarenameTest.sikuli/Results.png
+echo -e "\n--- Testing is now running, will wait until completed file appears before checking for errors ---\n"
+x=1
+
+echo -e "\n--- Converting file encoding so linux can properly search and work with file ---\n"
+recode -f UTF-7 $File
+
+if grep -q FAIL "$File";then
+	echo -e "\n--- Testing Failed ---\n"
+    echo -e "\n--- e-mail final results before cleanup ---\n"
+	cat $File| mutt -a "$Image" -s "Softwarename Testing FAIL Results Win8.1" -- development@modusmed.com
+    cat /var/jenkins/workspace/SoftwarenameTesting/SoftwarenameTesting/SoftwarenameTest.sikuli/TestResults.txt 
+    echo -e "\n--- Results above, now removing testing files, but will not destroy the machine for viewing ---\n"
+	rm -f $File
+    rm -f $ResultsImage
+    exit 1
+elif grep -q PASS "$File";then
+	echo -e "\n--- Testing Passed ---\n"
+    echo -e "\n--- e-mail final results before cleanup ---\n"
+    cat $File| mutt -a "$Image" -s "Softwarename Testing PASS Results Win8.1" -- development@modusmed.com
+	cat /var/jenkins/workspace/SoftwarenameTesting/SoftwarenameTesting/SoftwarenameTest.sikuli/TestResults.txt 
+    echo -e "\n--- Results above, now removing testing files ---\n"
+    echo -e "\n--- stoping fullscreen process ---\n"
+	kill -9 $(ps aux | grep $Machine |grep -v grep| awk '{print $2}')
+	echo -e "\n--- Destroying previous Vagrant Enviroment ---\n"
+	/usr/bin/vagrant destroy --force
+	rm -f $File
+    rm -f $ResultsImage
+    exit 0
+else
+	echo -e "\n--- Testing Results undetermined ---\n"
+    echo -e "\n--- e-mail final results before cleanup ---\n"
+    cat $File| mutt -a "$Image" -s "Softwarename Testing Undetermined Results Win8.1" -- development@modusmed.com
+    cat /var/jenkins/workspace/SoftwarenameTesting/SoftwarenameTesting/SoftwarenameTest.sikuli/TestResults.txt
+    echo -e "\n--- Results above, now removing testing files, but will not destroy the machine for viewing ---\n"
+	rm -f $File
+	rm -f $ResultsImage
+    exit 1
+fi
